@@ -7,11 +7,13 @@ Adicionei a autenticação por token do Django REST Framework somente à `OrderV
 
 ## Continuidade do projeto e do ambiente
 
-Dei continuidade à entrega do [módulo 16 — Paginação](https://github.com/mtgbcma-dotcom/m16-paginacao/pull/1). Mantive os modelos, os serializers, a migração inicial e os testes de serializers do Bookstore, além das funcionalidades acrescentadas nas etapas anteriores.
+Dei continuidade à entrega do [módulo 16 — Paginação](https://github.com/mtgbcma-dotcom/m16-paginacao/pull/1). Mantive os modelos, os serializers, a migração inicial, a paginação e os testes anteriores do Bookstore.
 
-Nos módulos 15 e 16, utilizei Poetry com `pyproject.toml` e `poetry.lock`. A partir do módulo 17, passei a declarar as dependências em `requirements.txt` e a instalar com pip. Nas etapas com Docker, o próprio Dockerfile executa essa instalação durante a construção da imagem. Documentei essa mudança de ferramenta para deixar explícita a continuidade do mesmo projeto.
+Mantive o **Poetry como ferramenta principal de instalação e execução**, conforme a estrutura dos módulos anteriores. Recuperei integralmente `pyproject.toml` e `poetry.lock` da branch `paginacao`, commit `24f54666fe781ee505115442defc0ca0e71f7c4e`. Preservei também a identificação `m57-bookstore` no manifesto. A autenticação por token utiliza o próprio Django REST Framework e não exige outra dependência.
 
-Para reproduzir esta entrega, utilizei os comandos e os arquivos de dependências desta versão, descritos abaixo. A instalação com pip segue as faixas registradas em `requirements.txt`; o lock do Poetry das etapas anteriores continua disponível nos respectivos repositórios.
+Instalei as dependências a partir do lock com `poetry install --no-root`. Não é necessário executar `poetry update`. Mantive `requirements.txt` somente como referência compatível das dependências diretas; os comandos de avaliação desta entrega utilizam Poetry.
+
+Documentei a comparação com a base em [docs/CONTINUIDADE.md](docs/CONTINUIDADE.md).
 
 ## Implementação
 
@@ -31,19 +33,20 @@ A autenticação identifica o usuário; a permissão verifica se ele pode acessa
 - Python
 - Django
 - Django REST Framework
+- Poetry
 - SQLite
 
 ## Executar no Windows
 
-Com Python 3.10 ou mais recente instalado, abra a pasta que contém `manage.py` e execute:
+Com Python 3.10 ou mais recente e Poetry 2.5.1 instalado, abra a pasta que contém `manage.py`, `pyproject.toml` e `poetry.lock` e execute:
 
 ```powershell
-py -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe manage.py migrate
-.\.venv\Scripts\python.exe manage.py createsuperuser
-.\.venv\Scripts\python.exe manage.py seed_demo
-.\.venv\Scripts\python.exe manage.py runserver
+poetry check --lock
+poetry install --no-root --no-interaction
+poetry run python manage.py migrate
+poetry run python manage.py createsuperuser
+poetry run python manage.py seed_demo
+poetry run python manage.py runserver
 ```
 
 O comando opcional `seed_demo` cria 12 categorias e 12 produtos para conferir a paginação. Ele não cria usuários nem pedidos e não duplica os mesmos registros quando executado novamente.
@@ -141,9 +144,10 @@ Os três recursos de gestão exigem um usuário da equipe. Os campos de escrita 
 ## Verificações
 
 ```powershell
-.\.venv\Scripts\python.exe manage.py check
-.\.venv\Scripts\python.exe manage.py makemigrations --check --dry-run
-.\.venv\Scripts\python.exe manage.py test --verbosity 2
+poetry check --lock
+poetry run python manage.py check
+poetry run python manage.py makemigrations --check --dry-run
+poetry run python manage.py test --verbosity 2
 ```
 
 A suíte contém **86 testes**. Além dos serializers, operações da API e paginação, os testes verificam obtenção de token, credenciais incorretas, usuário inativo, token inválido ou removido, bloqueio sem token, operações autenticadas e preservação da autenticação das outras ViewSets.
