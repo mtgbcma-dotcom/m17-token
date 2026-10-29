@@ -1,0 +1,185 @@
+# Bookstore — Autenticação por Token
+
+Atividade do Módulo 17 de Continuação Back-End Python da EBAC.
+
+Adicionei a autenticação por token do Django REST Framework somente à `OrderViewSet`. A API mantém o cadastro de categorias, produtos e pedidos, os serializers e a paginação de 5 registros por página.
+
+Conforme a orientação do tutor, liberei a consulta aos produtos sem login: `GET /api/products/` e `GET /api/products/{id}/` retornam HTTP 200 para visitantes. Mantive as operações de escrita de produtos restritas à equipe e a proteção por token dos pedidos.
+
+## Continuidade do projeto e do ambiente
+
+Dei continuidade à entrega do [módulo 16 — Paginação](https://github.com/mtgbcma-dotcom/m16-paginacao/pull/1). Mantive os modelos, os serializers, a migração inicial, a paginação e os testes anteriores do Bookstore.
+
+Mantive o **Poetry como ferramenta principal de instalação e execução**, conforme a estrutura dos módulos anteriores. Recuperei integralmente `pyproject.toml` e `poetry.lock` da branch `paginacao`, commit `24f54666fe781ee505115442defc0ca0e71f7c4e`. Preservei também a identificação `m57-bookstore` no manifesto. A autenticação por token utiliza o próprio Django REST Framework e não exige outra dependência.
+
+Instalei as dependências a partir do lock com `poetry install --no-root`. Não é necessário executar `poetry update`. Mantive `requirements.txt` somente como referência compatível das dependências diretas; os comandos de avaliação desta entrega utilizam Poetry.
+
+Documentei a comparação com a base em [docs/CONTINUIDADE.md](docs/CONTINUIDADE.md).
+
+## Implementação
+
+- Inclusão de `rest_framework.authtoken` nos aplicativos instalados.
+- Endpoint `POST /api/token/` para obter um token com usuário e senha válidos.
+- `authentication_classes = [TokenAuthentication]` somente em `OrderViewSet`.
+- Cabeçalho exigido em pedidos: `Authorization: Token <token>`.
+- Pedidos sem token, com token inválido ou de usuário inativo retornam HTTP 401.
+- A permissão de gestão `IsAdminUser` foi mantida: o usuário precisa ser da equipe, como o superusuário criado para os testes manuais.
+- Categorias continuam restritas à equipe por sessão ou Basic Authentication.
+- A listagem e os detalhes dos produtos são públicos, com paginação e categoria preservadas. Criar, alterar ou excluir produtos exige um usuário da equipe por sessão ou Basic Authentication.
+- Paginação e operações de cadastro, consulta, atualização e exclusão preservadas.
+
+A autenticação identifica o usuário; a permissão verifica se ele pode acessar a gestão. Um token válido de usuário comum retorna HTTP 403 nos pedidos, enquanto um token válido de administrador permite o acesso.
+
+## Tecnologias
+
+- Python
+- Django
+- Django REST Framework
+- Poetry
+- SQLite
+
+## Executar no Windows
+
+Com Python 3.10 ou mais recente e Poetry 2.5.1 instalado, abra a pasta que contém `manage.py`, `pyproject.toml` e `poetry.lock` e execute:
+
+```powershell
+poetry check --lock
+poetry install --no-root --no-interaction
+poetry run python manage.py migrate
+poetry run python manage.py createsuperuser
+poetry run python manage.py seed_demo
+poetry run python manage.py runserver
+```
+
+O comando opcional `seed_demo` cria 12 categorias e 12 produtos para conferir a paginação. Ele não cria usuários nem pedidos e não duplica os mesmos registros quando executado novamente.
+
+## Acessos pelo navegador
+
+- Raiz da API: http://127.0.0.1:8000/api/
+- Categorias: http://127.0.0.1:8000/api/categories/
+- Produtos: http://127.0.0.1:8000/api/products/
+- Administração: http://127.0.0.1:8000/admin/
+
+Consulte a listagem e os detalhes dos produtos sem fazer login. Para acessar categorias ou cadastrar, alterar e excluir produtos, clique em **Log in** e use o superusuário criado.
+
+Abrir `http://127.0.0.1:8000/api/orders/` no navegador sem enviar o token retorna HTTP 401, mesmo que exista uma sessão de login. Esse é o comportamento implementado para demonstrar a exigência de token somente nos pedidos.
+
+## Conferir produtos públicos no PowerShell
+
+Com o servidor iniciado, execute sem credenciais ou cabeçalho de autenticação:
+
+```powershell
+(Invoke-WebRequest -Uri "http://127.0.0.1:8000/api/products/" -UseBasicParsing).StatusCode
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/products/" | ConvertTo-Json -Depth 8
+```
+
+O resultado esperado é HTTP `200`, com `count`, `next`, `previous` e `results`. O detalhe de um produto existente também retorna HTTP `200` sem login.
+
+## Testar pedidos com token no PowerShell
+
+Mantenha o servidor rodando e abra outro terminal.
+
+### 1. Conferir o bloqueio sem token
+
+```powershell
+try {
+    (Invoke-WebRequest -Uri "http://127.0.0.1:8000/api/orders/" -UseBasicParsing).StatusCode
+} catch {
+    [int]$_.Exception.Response.StatusCode
+}
+```
+
+Resultado esperado: `401`.
+
+### 2. Obter um token
+
+```powershell
+$credencial = Get-Credential -Message "Informe o superusuario criado no projeto local"
+
+$dadosLogin = @{
+    username = $credencial.UserName
+    password = $credencial.GetNetworkCredential().Password
+}
+
+$autenticacao = Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/token/" -Method Post -ContentType "application/x-www-form-urlencoded" -Body $dadosLogin
+
+$cabecalhos = @{ Authorization = "Token $($autenticacao.token)" }
+
+Remove-Variable dadosLogin, credencial
+```
+
+O token fica na variável da sessão do PowerShell. Não o inclua em prints, arquivos ou commits.
+
+### 3. Consultar pedidos autenticados
+
+```powershell
+(Invoke-WebRequest -Uri "http://127.0.0.1:8000/api/orders/" -Headers $cabecalhos -UseBasicParsing).StatusCode
+
+$pedidos = Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/orders/" -Headers $cabecalhos
+$pedidos | ConvertTo-Json -Depth 8
+```
+
+Resultado esperado: HTTP `200` e a resposta paginada com `count`, `next`, `previous` e `results`. Em um banco sem pedidos, `count` será `0` e `results` será uma lista vazia.
+
+### 4. Cadastrar um pedido
+
+O exemplo abaixo utiliza usuário e produto com ID `1`. Confira os IDs existentes no seu banco e ajuste os valores antes de executar. O ID de um usuário pode ser consultado no painel administrativo.
+
+```powershell
+$novoPedido = @{
+    user = 1
+    product_ids = @(1)
+    status = "pending"
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/orders/" -Method Post -Headers $cabecalhos -ContentType "application/json" -Body $novoPedido | ConvertTo-Json -Depth 8
+```
+
+### 5. Atualizar um pedido
+
+Use o ID retornado no cadastro. Exemplo para o pedido `1`:
+
+```powershell
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/orders/1/" -Method Patch -Headers $cabecalhos -ContentType "application/json" -Body '{"status":"completed"}' | ConvertTo-Json -Depth 8
+```
+
+## Endpoints
+
+| Recurso | Endereço | Acesso |
+|---|---|---|
+| Obter token | `POST /api/token/` | Usuário e senha válidos |
+| Categorias | `/api/categories/` e `/api/categories/{id}/` | Sessão ou Basic Authentication |
+| Produtos | `/api/products/` e `/api/products/{id}/` | Consulta pública; escrita restrita à equipe por sessão ou Basic Authentication |
+| Pedidos | `/api/orders/` e `/api/orders/{id}/` | Somente Token Authentication |
+
+A consulta de produtos dispensa autenticação. A gestão de categorias, as alterações de produtos e os pedidos exigem um usuário da equipe, respeitando a autenticação de cada recurso. Os campos de escrita de produto e pedido continuam sendo `category_id`, `user` e `product_ids`.
+
+## Verificações
+
+```powershell
+poetry check --lock
+poetry run python manage.py check
+poetry run python manage.py makemigrations --check --dry-run
+poetry run python manage.py test --verbosity 2
+```
+
+A suíte contém **89 testes**. Além dos serializers, operações da API e paginação, os testes verificam consulta pública da listagem e dos detalhes de produtos, navegação entre páginas sem login, bloqueio das alterações de produtos para visitantes e usuários comuns, obtenção e validação de token e proteção das operações de pedidos.
+
+## Arquivos principais
+
+- `api/views.py`: autenticação por token somente na `OrderViewSet`.
+- `api/permissions.py`: leitura pública de produtos e escrita restrita à equipe.
+- `bookstore/settings.py`: aplicativo `authtoken` e paginação global.
+- `bookstore/urls.py`: endpoint para obter token.
+- `api/tests/test_token_authentication.py`: testes das requisições com e sem token.
+- `api/tests/test_viewsets.py`: testes das operações e permissões.
+- `api/tests/test_pagination.py`: testes da paginação.
+- `api/tests/test_serializers.py`: testes dos serializers.
+
+## Referência
+
+[TokenAuthentication — Django REST Framework](https://www.django-rest-framework.org/api-guide/authentication/#tokenauthentication)
+
+## Autor
+
+Bruno Costa Macedo de Almeida
