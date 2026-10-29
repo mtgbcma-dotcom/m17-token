@@ -8,9 +8,9 @@ Recuperei `pyproject.toml`, `poetry.lock` e `requirements.txt` integralmente des
 
 ## Funcionalidades anteriores preservadas
 
-Mantive sem alterações os modelos, serializers, migração inicial, testes de serializers, testes de paginação e comando de demonstração. Os ViewSets de categorias e produtos mantêm a autenticação anterior. Acrescentei TokenAuthentication apenas aos pedidos, o app `rest_framework.authtoken` e a rota `/api/token/`.
+Mantive os modelos, serializers, migração inicial, cenários anteriores de paginação e comando de demonstração. As categorias mantêm a autenticação anterior. Acrescentei TokenAuthentication apenas aos pedidos, o app `rest_framework.authtoken` e a rota `/api/token/`.
 
-Adaptei somente a expectativa de permissão nos testes de ViewSets para HTTP 401 nos pedidos sem token, preservando o HTTP 403 nas outras ViewSets. A suíte mantém os 65 testes anteriores e acrescenta 21 de autenticação, totalizando 86 testes.
+Ajustei a leitura de produtos conforme a orientação do tutor: listagem e detalhes são públicos. Mantive a escrita de produtos restrita à equipe e os pedidos protegidos por token. Atualizei as expectativas de leitura de produtos e acrescentei três testes para a consulta anônima, a paginação pública e o bloqueio de todas as operações de escrita para visitantes e usuários comuns. A suíte contém 89 testes.
 
 ## Reproduzir a validação
 
@@ -35,3 +35,11 @@ Validei esta correção em 28/10/2026, com Python 3.13 e Poetry 2.5.1:
 - `poetry run python manage.py makemigrations --check --dry-run`: nenhuma mudança pendente.
 - `poetry run python manage.py test --verbosity 2`: 86 testes aprovados.
 - `poetry run python manage.py migrate --noinput`: migrações aplicadas com sucesso.
+
+## Correção da consulta pública de produtos — 29/10/2026
+
+Atendi à orientação do tutor liberando a consulta da listagem e dos detalhes de produtos sem login. Mantive a paginação, a representação da categoria, as restrições de escrita dos produtos e a autenticação por token dos pedidos.
+
+Reproduzi o bloqueio anterior nos novos testes de consulta anônima: as requisições retornavam HTTP 403. Após ajustar a permissão de leitura da ProductViewSet, a consulta e a navegação entre páginas passaram a retornar HTTP 200. Os pedidos sem token continuam retornando HTTP 401.
+
+Validei o manifesto e o lock com `poetry check --lock`, a configuração com `poetry run python manage.py check` e as migrações com `poetry run python manage.py makemigrations --check --dry-run`. Executei `poetry run python manage.py test --verbosity 2 --noinput`: **89 testes aprovados**, incluindo os cenários de autenticação e de escrita protegida. Mantive `pyproject.toml` e `poetry.lock` sem alterações.

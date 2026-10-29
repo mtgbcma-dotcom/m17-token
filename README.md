@@ -4,6 +4,7 @@ Atividade do Módulo 17 de Continuação Back-End Python da EBAC.
 
 Adicionei a autenticação por token do Django REST Framework somente à `OrderViewSet`. A API mantém o cadastro de categorias, produtos e pedidos, os serializers e a paginação de 5 registros por página.
 
+Conforme a orientação do tutor, liberei a consulta aos produtos sem login: `GET /api/products/` e `GET /api/products/{id}/` retornam HTTP 200 para visitantes. Mantive as operações de escrita de produtos restritas à equipe e a proteção por token dos pedidos.
 
 ## Continuidade do projeto e do ambiente
 
@@ -23,7 +24,8 @@ Documentei a comparação com a base em [docs/CONTINUIDADE.md](docs/CONTINUIDADE
 - Cabeçalho exigido em pedidos: `Authorization: Token <token>`.
 - Pedidos sem token, com token inválido ou de usuário inativo retornam HTTP 401.
 - A permissão de gestão `IsAdminUser` foi mantida: o usuário precisa ser da equipe, como o superusuário criado para os testes manuais.
-- Categorias e produtos continuam com autenticação por sessão ou Basic Authentication; não receberam autenticação por token.
+- Categorias continuam restritas à equipe por sessão ou Basic Authentication.
+- A listagem e os detalhes dos produtos são públicos, com paginação e categoria preservadas. Criar, alterar ou excluir produtos exige um usuário da equipe por sessão ou Basic Authentication.
 - Paginação e operações de cadastro, consulta, atualização e exclusão preservadas.
 
 A autenticação identifica o usuário; a permissão verifica se ele pode acessar a gestão. Um token válido de usuário comum retorna HTTP 403 nos pedidos, enquanto um token válido de administrador permite o acesso.
@@ -58,9 +60,20 @@ O comando opcional `seed_demo` cria 12 categorias e 12 produtos para conferir a 
 - Produtos: http://127.0.0.1:8000/api/products/
 - Administração: http://127.0.0.1:8000/admin/
 
-Em categorias e produtos, clique em **Log in** e use o superusuário criado.
+Consulte a listagem e os detalhes dos produtos sem fazer login. Para acessar categorias ou cadastrar, alterar e excluir produtos, clique em **Log in** e use o superusuário criado.
 
 Abrir `http://127.0.0.1:8000/api/orders/` no navegador sem enviar o token retorna HTTP 401, mesmo que exista uma sessão de login. Esse é o comportamento implementado para demonstrar a exigência de token somente nos pedidos.
+
+## Conferir produtos públicos no PowerShell
+
+Com o servidor iniciado, execute sem credenciais ou cabeçalho de autenticação:
+
+```powershell
+(Invoke-WebRequest -Uri "http://127.0.0.1:8000/api/products/" -UseBasicParsing).StatusCode
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/products/" | ConvertTo-Json -Depth 8
+```
+
+O resultado esperado é HTTP `200`, com `count`, `next`, `previous` e `results`. O detalhe de um produto existente também retorna HTTP `200` sem login.
 
 ## Testar pedidos com token no PowerShell
 
@@ -132,14 +145,14 @@ Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/orders/1/" -Method Patch -Head
 
 ## Endpoints
 
-| Recurso | Endereço | Autenticação |
+| Recurso | Endereço | Acesso |
 |---|---|---|
 | Obter token | `POST /api/token/` | Usuário e senha válidos |
 | Categorias | `/api/categories/` e `/api/categories/{id}/` | Sessão ou Basic Authentication |
-| Produtos | `/api/products/` e `/api/products/{id}/` | Sessão ou Basic Authentication |
+| Produtos | `/api/products/` e `/api/products/{id}/` | Consulta pública; escrita restrita à equipe por sessão ou Basic Authentication |
 | Pedidos | `/api/orders/` e `/api/orders/{id}/` | Somente Token Authentication |
 
-Os três recursos de gestão exigem um usuário da equipe. Os campos de escrita de produto e pedido continuam sendo `category_id`, `user` e `product_ids`.
+A consulta de produtos dispensa autenticação. A gestão de categorias, as alterações de produtos e os pedidos exigem um usuário da equipe, respeitando a autenticação de cada recurso. Os campos de escrita de produto e pedido continuam sendo `category_id`, `user` e `product_ids`.
 
 ## Verificações
 
@@ -150,11 +163,12 @@ poetry run python manage.py makemigrations --check --dry-run
 poetry run python manage.py test --verbosity 2
 ```
 
-A suíte contém **86 testes**. Além dos serializers, operações da API e paginação, os testes verificam obtenção de token, credenciais incorretas, usuário inativo, token inválido ou removido, bloqueio sem token, operações autenticadas e preservação da autenticação das outras ViewSets.
+A suíte contém **89 testes**. Além dos serializers, operações da API e paginação, os testes verificam consulta pública da listagem e dos detalhes de produtos, navegação entre páginas sem login, bloqueio das alterações de produtos para visitantes e usuários comuns, obtenção e validação de token e proteção das operações de pedidos.
 
 ## Arquivos principais
 
 - `api/views.py`: autenticação por token somente na `OrderViewSet`.
+- `api/permissions.py`: leitura pública de produtos e escrita restrita à equipe.
 - `bookstore/settings.py`: aplicativo `authtoken` e paginação global.
 - `bookstore/urls.py`: endpoint para obter token.
 - `api/tests/test_token_authentication.py`: testes das requisições com e sem token.
